@@ -65,7 +65,7 @@ def open_file():
         abf.launchInClampFit()
     # abf.headerLaunch() #uncomment in order to see all abf details
     global ax
-    fig, ax = plt.subplots(1, len(abf.channelList), figsize=(12.8, 6.8))
+    fig, ax = plt.subplots(len(abf.channelList), 1, figsize=(12.8, 6.8), squeeze = False)
     fig.canvas.manager.set_window_title(abf.abfFilePath)
     sett = Toplevel(root)  # New window to hold burst detection settings
     sett.resizable(False, False)
@@ -209,35 +209,41 @@ def open_file():
             for sweeps in abf.sweepList:
                 abf.setSweep(sweepNumber=sweeps, channel=abf.channelList[ch])
                 sweepx.extend(list(abf.sweepX + abf.sweepNumber * abf.sweepLengthSec))
-        ax[ch].plot(sweepx, abf.data[ch], color="k")
-        ax[ch].title.set_text(abf.adcNames[ch])
+        ax[ch,0].plot(sweepx, abf.data[ch], color="k")
+        ax[ch,0].title.set_text(abf.adcNames[ch])
     # Loop over other axes and link to first axes
-    parent = ax[0]
+    parent = ax[0,0]
     for i in range(1, len(ax)):
-        ax[i].sharex(parent)
-        ax[i].sharey(parent)
+        ax[i,0].sharex(parent)
+        ax[i,0].sharey(parent)
     plt.show()
 
 
 # Function to plot all bursts in breakout window
 def plot_bursts():
-    newplot, breakch = plt.subplots(len(abf.adcNames), 1, figsize=(3, 8))
+    newplot, breakch = plt.subplots(len(abf.adcNames), 1, figsize=(3, 8), squeeze = False)
     newplot.canvas.manager.set_window_title(abf.abfID + " Burst breakout window")
-    for i in range(len(burstsave)):
-        breakch[i].cla
-        parent = breakch[0]
+    biglist = []
+    for i, ch in enumerate(burstsave):
+        breakch[i,0].cla
+        parent = breakch[0,0]
         for sels in burstsave[i][1:-1]:
-            selsx = list(np.arange(min(sels) - 50, max(sels)))
-            selsxlen = range(len(selsx))
-            if breakouttype_button.config("text")[-1] == "Bursts":
-                breakch[i].plot(selsxlen, filtered[i][selsx])
-            else:
-                breakch[i].plot(selsxlen, np.cumsum(abs(filtered[i][selsx])))
-            breakch[i].title.set_text(
-                abf.adcNames[i] + " : " + str(burstcountsave[i]) + " Bursts"
-            )
-            breakch[i].sharex(parent)
-            breakch[i].sharey(parent)
+            if sels: 
+                selsx = list(np.arange(min(sels) - 100, max(sels) + 100))
+                selsxlen = range(len(selsx))
+                if breakouttype_button.config("text")[-1] == "Bursts":
+                    breakch[i,0].plot(selsxlen, filtered[i][selsx])
+                else:
+                    breakch[i,0].plot(selsxlen, np.cumsum(abs(filtered[i][selsx])))
+                breakch[i,0].title.set_text(
+                    abf.adcNames[i] + " : " + str(burstcountsave[i]) + " Bursts"
+                )
+                breakch[i,0].sharex(parent)
+                breakch[i,0].sharey(parent)
+                forcsv = list((abf.data[i][selsx]))
+                biglist.append(list(forcsv))
+    global df3
+    df3 = pd.DataFrame(biglist)
     plt.show()
 
 
@@ -252,16 +258,16 @@ def find_bursts():
     # print(f"Channel names: {abf.adcNames}")
     # re-plot data in case changes were made during filtering
     for ch in abf.channelList:
-        ax[ch].cla()
-        ax[ch].title.set_text(abf.adcNames[ch])
+        ax[ch,0].cla()
+        ax[ch,0].title.set_text(abf.adcNames[ch])
         if abf.sweepCount == 1:
             abf.setSweep(sweepNumber=0, channel=abf.channelList[ch])
         else:
             abf.setSweep(sweepNumber=1, channel=abf.channelList[ch])
         if len(filtered):
-            ax[ch].plot(sweepx, abs(filtered[ch]), color="b", alpha=0.5)
+            ax[ch,0].plot(sweepx, abs(filtered[ch]), color="b", alpha=0.5)
             if raw_button.config("text")[-1] == "ON":
-                ax[ch].plot(sweepx, abf.data[ch], color="k", alpha=0.5)
+                ax[ch,0].plot(sweepx, abf.data[ch], color="k", alpha=0.5)
     plt.show()
     ML = {}
     {"ch1": {"peaks": [], "peak_diffs": []}}
@@ -310,7 +316,7 @@ def find_bursts():
                 1:
             ]:  # break spike data from each burst into its own array
                 diff = abs(item - first_item)
-                if diff < 50 * (
+                if diff < 20 * (
                     abf.dataRate / 1000
                 ):  # this value sets the maximum distance between consecutive spikes within a burst (best to use same value as initial ISI search)
                     m.append(first_item)
@@ -319,6 +325,8 @@ def find_bursts():
                         b_matches.append(m)
                     m = []
                 first_item = item
+        else: 
+            b_matches.append([0,0])
         for t, j in enumerate(mark_og_idx):
             datastore[j] = mark_amp[t]
         bursts[i] = b_matches
@@ -390,13 +398,13 @@ def find_bursts():
                     burstmeanamp = sum(properties_for_mean["peak_heights"]) / len(properties_for_mean["peak_heights"]) 
                 burstcounter.append(1)
                 if marker_button.config("text")[-1] == "ON":
-                    ax[i].axvline(
+                    ax[i,0].axvline(
                         x=burststart, color="g", alpha=0.5
                     )  # green line to mark beginning of burst as defined by ISI algorithm
-                    ax[i].axvline(
+                    ax[i,0].axvline(
                         x=burstend, color="r", alpha=0.5
                     )  # red line to mark end of burst as defined by ISI algorithm
-                    ax[i].title.set_text(abf.adcNames[i])
+                    ax[i,0].title.set_text(abf.adcNames[i])
                 recside = sidevars[axis].get()
                 reclevel = levelvars[axis].get()
                 injury = injuryvar.get()
@@ -460,8 +468,11 @@ def find_bursts():
                 stimlev = 0
                 recside = sidevars[axis].get()
                 reclevel = levelvars[axis].get()
-                injury = 0
-                drug = 0
+                injury = injuryvar.get()
+                drug = drugvar.get()
+                selsx = list(np.arange(0,0))
+                bursthold.append(selsx)
+                burstsave[i] = bursthold
             store.append(
                 [
                     burstday,
@@ -533,6 +544,7 @@ def write_to_csv():
         currpath = currdir + "\\" + "Python_Data" + "\\"
     df.to_csv(currpath + abf.abfID + "_Burst_Quant.csv", index=False)
     df2.to_csv(currpath + abf.abfID + "_Cross_Correlation.csv", index=False)
+    df3.to_csv(currpath + abf.abfID + "_Burst_Waveforms.csv", index=False)
     print(f".csv files written to {currpath}")
 
 
@@ -567,18 +579,18 @@ def perform_cross_correlation():
         corrlist[ind] = corr
         combo.append(i)
         localmax.append(max(corr))
-    fig2, ax2 = plt.subplots(1, len(combo))
+    fig2, ax2 = plt.subplots(1, len(combo), squeeze = False)
     fig2.canvas.manager.set_window_title("Cross correlation plots")
     store2 = []
     for ind, corrs in enumerate(corrlist):
         interm = []
         corrfind = corrlist[ind] / max(localmax)
-        ax2[ind].plot(lags, corrfind)
+        ax2[0,ind].plot(lags, corrfind)
         legendtext = [combo[ind][0] + 1, combo[ind][1] + 1]
-        ax2[ind].legend([legendtext], loc="upper center")
-        ax2[ind].set_xlim(-0.2, 0.2)
-        ax2[ind].set_ylim(0, 1)
-        corrpeaks, _ = find_peaks(corrfind, height=0.2, distance=5)
+        ax2[0,ind].legend([legendtext], loc="upper center")
+        ax2[0,ind].set_xlim(-0.2, 0.2)
+        ax2[0,ind].set_ylim(0, 1)
+        corrpeaks, _ = find_peaks(corrfind, height=0.3, distance=5)
         toplag = []
         topcorr = []
         if len(corrpeaks):
@@ -600,7 +612,22 @@ def perform_cross_correlation():
             interm.extend(lagsout)
             interm.extend(corrout)
             store2.append(interm)
-  #          ax2[ind].plot(lags[corrpeaks], corrfind[corrpeaks], "r*")
+        else: 
+            burstday = abf.abfID
+            chan1 = combo[ind][0] + 1
+            chan2 = combo[ind][1] + 1
+            lagsout = []
+            corrout = []
+            for i in range(5):
+                lagsout.append(0)
+                corrout.append(0)
+            interm.append(burstday)
+            interm.append(chan1)
+            interm.append(chan2)
+            interm.extend(lagsout)
+            interm.extend(corrout)
+            store2.append(interm)
+  #         ax2[ind].plot(lags[corrpeaks], corrfind[corrpeaks], "r*")
     # like above, be sure to add variable names here if more measurements are taken
     namelist2 = [
         "Burst_Day",
@@ -628,7 +655,7 @@ def remove_artifact():
     inter = {}
     rounded = {}
     for ch in abf.channelList:
-        ax[ch].cla()
+        ax[ch,0].cla()
         sweepx = []
         if (
             abf.sweepCount == 1
@@ -680,13 +707,13 @@ def remove_artifact():
                 for j in range(startidx, endidx):
                     filtered[ch][j] = 0
     for ch in abf.channelList:
-        ax[ch].plot(sweepx, abs(filtered[ch]), color="b", alpha=0.5)
-        ax[ch].title.set_text(abf.adcNames[ch])
+        ax[ch,0].plot(sweepx, abs(filtered[ch]), color="b", alpha=0.5)
+        ax[ch,0].title.set_text(abf.adcNames[ch])
         if raw_button.config("text")[-1] == "ON":
-            ax[ch].plot(sweepx, abf.data[ch], color="k", alpha=0.5)
-            ax[ch].title.set_text(abf.adcNames[ch])
+            ax[ch,0].plot(sweepx, abf.data[ch], color="k", alpha=0.5)
+            ax[ch,0].title.set_text(abf.adcNames[ch])
         for i in stimtimes:
-            ax[ch].plot(sweepx[i], 0, "r*")
+            ax[ch,0].plot(sweepx[i], 0, "r*")
         chanthresh[ch].delete(0, END)
         chanthresh[ch].insert(END, 3.5 * np.sqrt(np.mean(filtered[ch] ** 2)))
     plt.show()
@@ -696,11 +723,11 @@ def remove_artifact():
 # filtfilt is used in order to cancel out phase shift
 def filter_data():
     for i in abf.channelList:
-        ax[i].cla()
+        ax[i,0].cla()
         filt = []
         if raw_button.config("text")[-1] == "ON":
-            ax[i].plot(sweepx, abf.data[i], color="k", alpha=0.5)
-            ax[i].title.set_text(abf.adcNames[i])
+            ax[i,0].plot(sweepx, abf.data[i], color="k", alpha=0.5)
+            ax[i,0].title.set_text(abf.adcNames[i])
         if abf.sweepCount == 1:
             abf.setSweep(sweepNumber=0, channel=abf.channelList[i])
         else:
@@ -715,8 +742,8 @@ def filter_data():
             )
             filtered[i] = signal.sosfiltfilt(sos, abf.data[i])
             if median_button.config("text")[-1] == "OFF":
-                ax[i].plot(sweepx, abs(filtered[i]), color="b", alpha=0.5)
-                ax[i].title.set_text(abf.adcNames[i])
+                ax[i,0].plot(sweepx, abs(filtered[i]), color="b", alpha=0.5)
+                ax[i,0].title.set_text(abf.adcNames[i])
         elif (
             high_button.config("text")[-1] == "ON"
             and low_button.config("text")[-1] == "ON"
@@ -731,8 +758,8 @@ def filter_data():
             )
             filtered[i] = signal.sosfiltfilt(sos, abf.data[i])
             if median_button.config("text")[-1] == "OFF":
-                ax[i].plot(sweepx, abs(filtered[i]), color="b", alpha=0.5)
-                ax[i].title.set_text(abf.adcNames[i])
+                ax[i,0].plot(sweepx, abs(filtered[i]), color="b", alpha=0.5)
+                ax[i,0].title.set_text(abf.adcNames[i])
         elif (
             high_button.config("text")[-1] == "OFF"
             and low_button.config("text")[-1] == "ON"
@@ -743,15 +770,15 @@ def filter_data():
             )
             filtered[i] = signal.sosfiltfilt(sos, abf.data[i])
             if median_button.config("text")[-1] == "OFF":
-                ax[i].plot(sweepx, abs(filtered[i]), color="b", alpha=0.5)
-                ax[i].title.set_text(abf.adcNames[i])
+                ax[i,0].plot(sweepx, abs(filtered[i]), color="b", alpha=0.5)
+                ax[i,0].title.set_text(abf.adcNames[i])
         if median_button.config("text")[-1] == "ON":
             if filt == 1:
                 filtered[i] = signal.medfilt(filtered[i])
             else:
                 filtered[i] = signal.medfilt(abf.data[i])
-            ax[i].plot(sweepx, abs(filtered[i]), color="b", alpha=0.5)
-            ax[i].title.set_text(abf.adcNames[i])
+            ax[i,0].plot(sweepx, abs(filtered[i]), color="b", alpha=0.5)
+            ax[i,0].title.set_text(abf.adcNames[i])
         chanthresh[i].delete(0, END)
         chanthresh[i].insert(END, 3.5 * np.sqrt(np.mean(filtered[i] ** 2)))
     plt.show()
