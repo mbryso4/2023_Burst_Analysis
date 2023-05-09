@@ -1,2 +1,2 @@
 # 2023_Burst_Analysis
-Python  
+Python code used for burst analysis
